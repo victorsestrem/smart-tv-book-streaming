@@ -51,8 +51,8 @@ flowchart LR
 - **One file per paragraph.** The reader already works paragraph by paragraph, so the audio follows the same anchor (a stable paragraph index). Turning a page, skipping, or resuming never needs to seek inside a long file.
 - **Resumable generation.** The script skips files that already exist, pauses between requests (21 s by default), waits and retries on per-minute limits, and stops cleanly on the daily quota, so it can run in batches over several days without losing work.
 - **Storage and caching.** Audio lives next to the app as static assets, outside the JavaScript bundle, and downloads only when the listener presses play. Hashed app files are cached for a year; the HTML always revalidates.
-- **Cost.** Generation started on the Gemini API free tier, which allowed 10 TTS requests per day for this model at the time. [TODO: final cost of generating a full book once the run completes.] Playback costs nothing: no API is called at listening time.
-- **Size.** About 48 kbps mono keeps speech clear; a sample of three paragraphs averaged about 6 KB per second of speech. [TODO: total size of the full book.]
+- **Cost.** Generation started on the Gemini API free tier, which allowed 10 TTS requests per day for this model at the time. The final cost of narrating a full book will be added when the first full run completes. Playback costs nothing: no API is called at listening time.
+- **Size.** About 48 kbps mono keeps speech clear; a sample of three paragraphs averaged about 6 KB per second of speech.
 - **Graceful fallback.** A paragraph without audio falls back to the silent reading mode, so partial narration never breaks the player.
 
 ## Technical challenges
