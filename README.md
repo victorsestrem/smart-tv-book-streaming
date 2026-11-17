@@ -18,7 +18,7 @@
 
 **Problem.** People binge series on the living room TV, but reading has no equivalent there. A startup wanted to show investors what a book streaming service on a 10-foot screen could feel like, and it had to work with only a remote control, in any TV browser, without an app store release.
 
-**Solution.** A streaming-style web app designed at 1920x1080 for the TV: household profiles, a rotating featured title, rails of covers, a title page, and a reader that shows one paragraph at a time. Every screen is driven by arrows, OK, and Back. Selected books can also be read aloud, with the narration advancing paragraph by paragraph.
+**Solution.** A streaming-style web app designed at 1920x1080 for the TV: household profiles, a rotating featured title, rails of covers, a title page, and a reader that shows one paragraph at a time. Every screen is driven by arrows, OK, and Back. The opening of a selected book can also be read aloud, with the narration advancing paragraph by paragraph.
 
 ## What I built
 
@@ -51,8 +51,8 @@ flowchart LR
 - **One file per paragraph.** The reader already works paragraph by paragraph, so the audio follows the same anchor (a stable paragraph index). Turning a page, skipping, or resuming never needs to seek inside a long file.
 - **Resumable generation.** The script skips files that already exist, pauses between requests (21 s by default), waits and retries on per-minute limits, and stops cleanly on the daily quota, so it can run in batches over several days without losing work.
 - **Storage and caching.** Audio lives next to the app as static assets, outside the JavaScript bundle, and downloads only when the listener presses play. Hashed app files are cached for a year; the HTML always revalidates.
-- **Cost.** Generation started on the Gemini API free tier, which allowed 10 TTS requests per day for this model at the time. The final cost of narrating a full book will be added when the first full run completes. Playback costs nothing: no API is called at listening time.
-- **Size.** About 48 kbps mono keeps speech clear; a sample of three paragraphs averaged about 6 KB per second of speech.
+- **Cost.** The demo narrates the opening of one book (the full preface and the start of chapter one: 14 paragraphs, about 4 minutes of speech), generated entirely on the Gemini API free tier at no cost. That tier allowed 10 TTS requests per day for this model at the time, so a full book would need a paid tier or many daily batches. Playback costs nothing: no API is called at listening time.
+- **Size.** About 48 kbps mono keeps speech clear: the 14 narrated paragraphs take about 1.5 MB, roughly 6 KB per second of speech.
 - **Graceful fallback.** A paragraph without audio falls back to the silent reading mode, so partial narration never breaks the player.
 
 ## Technical challenges
