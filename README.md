@@ -1,60 +1,76 @@
 # Smart TV Book Streaming: Case Study
 
-> A "Netflix for books" demo for Smart TV browsers: pick a profile, browse a catalog, and read a chapter one paragraph at a time with the remote control.
+> A "Netflix for books" for Smart TV browsers: pick a profile, browse a catalog, and read (or listen to) a book one paragraph at a time, using nothing but the TV remote.
 > **Source code is private.** This repository documents the project; a live walkthrough is available on request.
 
 ![React](https://img.shields.io/badge/React_18-20232A?logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
 ![Zustand](https://img.shields.io/badge/Zustand-443E38)
+![Gemini TTS](https://img.shields.io/badge/Gemini_TTS-8E75B2?logo=googlegemini&logoColor=white)
 ![Cloudflare Pages](https://img.shields.io/badge/Cloudflare_Pages-F38020?logo=cloudflare&logoColor=white)
 
-**Status:** in development (web version live for investor demos; the TV rollout is the next stage).
+**Stack:** React 18, TypeScript, Vite, Zustand, React Router (hash routing), Norigin Spatial Navigation, CSS Modules, Gemini text-to-speech (gemini-3.8-flash-tts), ffmpeg, Cloudflare Pages.
 
-## The problem
+**Status:** MVP demo for investor meetings. The web version is live; the rollout on a real Smart TV is the next stage.
 
-A startup wanted to pitch investors on reading as a living room experience, the way people already binge series on TV. They needed a demo that felt like a real streaming app on a 10-foot screen, worked with nothing but a TV remote, and could run in any TV browser without an app store release.
+## Problem → Solution
+
+**Problem.** People binge series on the living room TV, but reading has no equivalent there. A startup wanted to show investors what a book streaming service on a 10-foot screen could feel like, and it had to work with only a remote control, in any TV browser, without an app store release.
+
+**Solution.** A streaming-style web app designed at 1920x1080 for the TV: household profiles, a rotating featured title, rails of covers, a title page, and a reader that shows one paragraph at a time. Every screen is driven by arrows, OK, and Back. Selected books can also be read aloud, with the narration advancing paragraph by paragraph.
 
 ## What I built
 
 - **Profiles and home**: four household profiles, a rotating featured title, and a "Continue reading" rail that remembers where each person stopped.
-- **Title details**: synopsis, chapters list, bookmarks, and favorite authors, saved per profile.
-- **Paragraph-by-paragraph player**: one paragraph on screen at a time; left and right arrows move through the text and across chapters, and long paragraphs shrink and scroll to stay readable from the couch.
-- **Reading settings**: three themes (dark, light, black), three font families, and line spacing, each remembered per profile, plus a text-only mode that hides the controls.
-- **Save a passage**: one button stores the current paragraph as a highlight, without duplicates, and it shows up later in the "My stuff" area.
-- **On-screen keyboard search**: search by title or author, ignoring accents and case, with theme chips (Courage, Love, Adventure, Family).
-- **Narration pipeline**: a script that pre-generates audio for each paragraph with a text-to-speech model, so the player can read aloud with real elapsed time and auto-advance, served as static files.
+- **Title page**: synopsis, chapter list, bookmarks, and favorite authors, saved per profile. Reading starts at the very beginning (preface included), with a one-click "Skip preface".
+- **Paragraph-by-paragraph player**: one paragraph on screen at a time; left and right move through the text and across chapters, and long paragraphs shrink and scroll to stay readable from the couch.
+- **Reading settings**: three themes (dark, light, black), three font families, and line spacing, each remembered per profile, plus a one-button text-only mode that hides the player controls.
+- **Save a passage**: one button stores the current paragraph as a highlight, without duplicates; it shows up later in the "My stuff" area.
+- **On-screen keyboard search**: by title or author, ignoring accents and case, with theme chips (Courage, Love, Adventure, Family).
+- **AI narration**: pre-generated text-to-speech audio for each paragraph, with real elapsed time, playback speed, and auto-advance to the next paragraph and chapter.
 - **55 public-domain works** in the catalog, with period covers from Wikimedia Commons and per-image license tracking.
 
-## Architecture
+## AI highlight: narration with text-to-speech
+
+The player can read a book aloud. Instead of synthesizing speech live on the TV (TV browsers have partial and unreliable support for the Web Speech API), the audio is **generated once, offline, and shipped as static files**.
 
 ```mermaid
 flowchart LR
-    Remote[TV remote: arrows, OK, Back] --> Nav[Spatial navigation layer]
-    Nav --> Screens[React screens at 1920x1080]
-    Screens --> Stores[Zustand stores]
-    Stores --> Repo[Repository interface]
-    Repo --> LS[(Browser localStorage, per profile)]
-    Seed[Catalog seed JSON] --> Stores
-    TTS[Text-to-speech script, run once] --> Audio[Static audio files]
-    Audio --> Screens
-    Build[Vite build, ES2017] --> CDN[Cloudflare Pages CDN]
+    Seed[Catalog seed: book text split into paragraphs] --> Script[Generation script, Node.js]
+    Key[(API key in a local file, never in the repo)] --> Script
+    Script -->|one request per paragraph| Gemini[Gemini TTS: gemini-3.8-flash-tts, voice Sulafat]
+    Gemini -->|WAV, 24 kHz| FF[ffmpeg: mono MP3, 48 kbps]
+    FF --> Files[One MP3 per paragraph]
+    FF --> Index[Index file: duration per paragraph]
+    Files --> CDN[Cloudflare Pages, static hosting]
+    Index --> CDN
+    CDN -->|loaded on demand| Player[Player: one audio element, auto-advance, playback rate]
 ```
 
-- **Remote-first input**: every interaction works with only the arrow keys, OK, and Back; each screen sets focus on mount and restores the last focused item when you return.
-- **One layout, any TV**: the UI is designed at 1920x1080 and scaled as a whole with a CSS transform, with a 5% safe area, so it needs no media queries.
-- **Built for slow TV browsers**: ES2017 target, animations limited to transform and opacity, no UI kit, and a JavaScript budget under 300 KB gzipped (about 238 KB today, fonts excluded).
-- **Offline friendly by design**: all state lives behind a repository interface over localStorage, so the demo never depends on the network during a pitch and can move to a cloud database later without touching the screens. Static hosting with hash routing, long-lived caching for hashed assets, and the demo kept out of search engines.
+- **One file per paragraph.** The reader already works paragraph by paragraph, so the audio follows the same anchor (a stable paragraph index). Turning a page, skipping, or resuming never needs to seek inside a long file.
+- **Resumable generation.** The script skips files that already exist, pauses between requests (21 s by default), waits and retries on per-minute limits, and stops cleanly on the daily quota, so it can run in batches over several days without losing work.
+- **Storage and caching.** Audio lives next to the app as static assets, outside the JavaScript bundle, and downloads only when the listener presses play. Hashed app files are cached for a year; the HTML always revalidates.
+- **Cost.** Generation started on the Gemini API free tier, which allowed 10 TTS requests per day for this model at the time. [TODO: final cost of generating a full book once the run completes.] Playback costs nothing: no API is called at listening time.
+- **Size.** About 48 kbps mono keeps speech clear; a sample of three paragraphs averaged about 6 KB per second of speech. [TODO: total size of the full book.]
+- **Graceful fallback.** A paragraph without audio falls back to the silent reading mode, so partial narration never breaks the player.
+
+## Technical challenges
+
+- **Remote-only navigation (spatial focus).** Every action works with arrows, OK, and Back. A spatial navigation layer moves focus between rails and buttons; each screen sets focus on mount and restores the last focused item on return. Popups close on Back without leaving the reader, and the exit button is labeled and set apart from the settings menu to avoid accidental exits.
+- **Performance on TV hardware.** TV browsers run older, slower Chromium builds. The app targets ES2017, animates only transform and opacity, uses no UI kit, and keeps the JavaScript under a 300 KB gzipped budget (about 95 KB for the app code, plus the catalog loaded as a separate chunk; fonts excluded). The whole UI is designed at 1920x1080 and scaled with a single CSS transform, with a 5% safe area.
+- **Offline-friendly state.** All per-profile state sits behind a repository interface over localStorage, so a pitch never depends on the network, and the storage can move to a cloud database later without touching the screens.
+- **Deployment.** Static build on Cloudflare Pages with hash routing (no server-side fallback needed), long-lived caching for hashed assets, an always-revalidated HTML entry, and noindex, nofollow headers to keep the demo out of search engines. Each release is checked after deploy: HTTP status, the served JavaScript hash matching the local build, and the response headers.
 
 ## Scale
 
-- ~4.7k lines of TypeScript and TSX
+- ~4.8k lines of TypeScript and TSX
 - 11 test files
-- 10 screens designed for TV
+- 10 TV screens
 
 ## My role
 
-I owned the project end to end as the sole developer: turned the product brief and wireframes into a phased plan, defined the data model (profiles, works, passages, and notes anchored to stable paragraph indexes), built every screen, the remote-control navigation and the per-profile persistence, wrote the tests, set up the narration pipeline, and deployed the web version to Cloudflare Pages.
+Sole developer, end to end: turned the product brief and wireframes into a phased plan, defined the data model (profiles, works, passages, and notes anchored to stable paragraph indexes), built every screen, the remote-control navigation and per-profile persistence, designed and built the text-to-speech narration pipeline, wrote the tests, and deployed the web version.
 
 ---
 Built by **Victor Sestrem** · [LinkedIn](https://www.linkedin.com/in/victor-sestrem/) · victor-sestrem@hotmail.com
